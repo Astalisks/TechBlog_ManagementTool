@@ -13,8 +13,8 @@ jobs:
       - name: Build Qiita & Zenn trees
         run: |
           mkdir -p _dist/qiita _dist/zenn/articles
-          find tech-blog/Articles -name '*.md' -type f | while read f; do
-            rel="${f#tech-blog/Articles/}"                    # 02-sectiontitle/02-01/xxx.md
+          find Articles -name '*.md' -type f | while read f; do
+            rel="${f#Articles/}"                    # 02-sectiontitle/02-01/xxx.md
             dir=$(dirname "$rel")
             base=$(basename "$f")
             slug=$(echo "$base" | tr 'A-Z_' 'a-z-' | sed 's/\.md$//')  # Zenn 用 slug
@@ -22,7 +22,7 @@ jobs:
             # ---------- Qiita ----------
             outq="_dist/qiita/$dir/$base"
             mkdir -p "$(dirname "$outq")"
-            sed -E "s#\\((images/[^)]+)\\)#(https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_SHA}/tech-blog/Articles/$dir/\\1)#g" "$f" > "$outq"
+            sed -E "s#\\((images/[^)]+)\\)#(https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_SHA}/Articles/$dir/\\1)#g" "$f" > "$outq"
 
             # ---------- Zenn ----------
             outz="_dist/zenn/articles/${slug}.md"
