@@ -1,0 +1,58 @@
+name: Publish Tech Blog
+on:
+  push:
+    branches: [main]
+    paths: ['tech-blog/Articles/**.md']   # 記事変化だけで起動
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # _dist に Qiita 用と Zenn 用を生成
+      - name: Build Qiita & Zenn trees
+        run: |
+          mkdir -p _dist/qiita _dist/zenn/articles
+          find tech-blog/Articles -name '*.md' -type f | while read f; do
+            rel="${f#tech-blog/Articles/}"                    # 02-sectiontitle/02-01/xxx.md
+            dir=$(dirname "$rel")
+            base=$(basename "$f")
+            slug=$(echo "$base" | tr 'A-Z_' 'a-z-' | sed 's/\.md$//')  # Zenn 用 slug
+
+            # ---------- Qiita ----------
+            outq="_dist/qiita/$dir/$base"
+            mkdir -p "$(dirname "$outq")"
+            sed -E "s#\\((images/[^)]+)\\)#(https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_SHA}/tech-blog/Articles/$dir/\\1)#g" "$f" > "$outq"
+
+            # ---------- Zenn ----------
+            outz="_dist/zenn/articles/${slug}.md"
+            mkdir -p "$(dirname "$outz")"
+            cp "$f" "$outz"
+            cp -r "$(dirname "$f")/images" "_dist/zenn/articles/${slug}/" || true
+          done
+
+  qiita:
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publish to Qiita
+        uses: noraworld/github-to-qiita@v1          # Marketplace Action
+        with:
+          dir: _dist/qiita
+          qiita_access_token: ${{ secrets.QIITA_TOKEN }}
+
+  zenn:
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Push to Zenn branch
+        run: |
+          git config --global user.name  "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan zenn-sync
+          mv _dist/zenn/* .
+          git add .
+          git commit -m "sync: zenn $(date '+%F')" || true
+          git push -f origin zenn-sync:zenn-main
