@@ -2,7 +2,7 @@ name: Publish Tech Blog
 on:
   push:
     branches: [main]
-    paths: ['/Articles/**.md']   # 記事変化だけで起動
+    paths: ['Articles/**.md']   # 記事変化だけで起動
 jobs:
   prepare:
     runs-on: ubuntu-latest
@@ -14,7 +14,7 @@ jobs:
         run: |
           mkdir -p _dist/qiita _dist/zenn/articles
           find Articles -name '*.md' -type f | while read f; do
-            rel="${f#Articles/}"                    # 02-sectiontitle/02-01/xxx.md
+            rel="${f#Articles/}"
             dir=$(dirname "$rel")
             base=$(basename "$f")
             slug=$(echo "$base" | tr 'A-Z_' 'a-z-' | sed 's/\.md$//')  # Zenn 用 slug
