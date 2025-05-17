@@ -2,57 +2,56 @@ name: Publish Tech Blog
 on:
   push:
     branches: [main]
-    paths: ['Articles/**.md']   # 記事変化だけで起動
+    paths: ['Articles/**.md']
+
 jobs:
-  prepare:
+  publish:
     runs-on: ubuntu-latest
+    env:
+      QIITA_TOKEN: ${{ secrets.QIITA_TOKEN }}
+
     steps:
       - uses: actions/checkout@v4
 
-      # _dist に Qiita 用と Zenn 用を生成
+      # 1) Articles → _dist にコピー＆変換
       - name: Build Qiita & Zenn trees
         run: |
-          mkdir -p _dist/qiita _dist/zenn/articles
+          mkdir -p _dist/qiita _dist/zenn/articles _dist/zenn/images
           find Articles -name '*.md' -type f | while read f; do
-            rel="${f#Articles/}"
+            rel="${f#Articles/}"               # 01-section/01-01/foo.md
             dir=$(dirname "$rel")
             base=$(basename "$f")
-            slug=$(echo "$base" | tr 'A-Z_' 'a-z-' | sed 's/\.md$//')  # Zenn 用 slug
+            slug=$(echo "$base" | tr 'A-Z_' 'a-z-' | sed 's/\.md$//')
 
-            # ---------- Qiita ----------
+            # ---- Qiita ----
             outq="_dist/qiita/$dir/$base"
             mkdir -p "$(dirname "$outq")"
             sed -E "s#\\((images/[^)]+)\\)#(https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_SHA}/Articles/$dir/\\1)#g" "$f" > "$outq"
 
-            # ---------- Zenn ----------
+            # ---- Zenn ----  (articles/slug.md + 画像はリポジトリ直下 images/)
             outz="_dist/zenn/articles/${slug}.md"
             mkdir -p "$(dirname "$outz")"
             cp "$f" "$outz"
-            cp -r "$(dirname "$f")/images" "_dist/zenn/articles/${slug}/" || true
+
+            if [ -d "$(dirname "$f")/images" ]; then
+              cp -r "$(dirname "$f")/images/"* "_dist/zenn/images/" || true
+            fi
           done
 
-  qiita:
-    needs: prepare
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+      # 2) Qiita へ投稿
       - name: Publish to Qiita
-        uses: noraworld/github-to-qiita@v1          # Marketplace Action
+        uses: noraworld/github-to-qiita@v1
         with:
           dir: _dist/qiita
-          qiita_access_token: ${{ secrets.QIITA_TOKEN }}
+          qiita_access_token: ${{ env.QIITA_TOKEN }}
 
-  zenn:
-    needs: prepare
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+      # 3) Zenn 用ブランチへ force-push
       - name: Push to Zenn branch
         run: |
           git config --global user.name  "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout --orphan zenn-sync
           mv _dist/zenn/* .
-          git add .
-          git commit -m "sync: zenn $(date '+%F')" || true
-          git push -f origin zenn-sync:zenn-main
+          git add articles images
+          git commit -m "sync: zenn $(date +%F)" || true
+          git push -f origin zenn-sync:zenn-main   # Zenn が監視するブランチ
