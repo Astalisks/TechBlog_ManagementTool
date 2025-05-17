@@ -2,7 +2,7 @@ name: Publish Tech Blog
 on:
   push:
     branches: [main]
-    paths: ['tech-blog/Articles/**.md']   # 記事変化だけで起動
+    paths: ['/Articles/**.md']   # 記事変化だけで起動
 jobs:
   prepare:
     runs-on: ubuntu-latest
